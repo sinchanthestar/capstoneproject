@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Admin - @yield('title')</title>
+    <link rel="icon" href="">
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.store('badges', {
+                izin: 0,
+                cuti: 0,
+                isLoading: false,
+                lastUpdate: null,
+                errorCount: 0,
+                
+                init() {
+                    // Start polling when component initializes
+                    this.startPolling();
+                },
+                
+                startPolling() {
+                    // Initial poll immediately
+                    this.fetchCounts();
+                    
+                    // Set up interval for polling (every 10 seconds)
+                    setInterval(() => this.fetchCounts(), 10000);
+                },
+                
+                async fetchCounts() {
+                    // Skip if already loading
+                    if (this.isLoading) return;
+                    
+                    this.isLoading = true;
+                    
+                    try {
+                        const response = await fetch('{{ route('admin.attendances.pending-counts') }}', {
+                            method: 'GET',
+                            headers: { 
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json'
+                            },
+                            credentials: 'same-origin'
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        
+                        // Update counts with animation
+                        const oldIzin = this.izin;
+                        const oldCuti = this.cuti;
+                        
+                        this.izin = parseInt(data.izin || 0);
+                        this.cuti = parseInt(data.cuti || 0);
+                        this.lastUpdate = new Date();
+                        this.errorCount = 0; // Reset error count on success
+                        
+                        // Log if counts changed
+                        if (oldIzin !== this.izin || oldCuti !== this.cuti) {
+                            console.log('Badge counts updated:', { izin: this.izin, cuti: this.cuti });
+                        }
+                        
+                    } catch (error) {
+                        this.errorCount++;
+                        console.error('Error fetching badge counts:', error);
+                        
+                        // Stop polling after 3 consecutive errors
+                        if (this.errorCount >= 3) {
+                            console.warn('Badge polling stopped after 3 consecutive errors');
+                        }
+                    } finally {
+                        this.isLoading = false;
+                    }
+                }
+            });
+        });
+    </script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <style>
+        ::-webkit-scrollbar{
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb{
+            background-color: #e0f2fe;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover{
+            background-color: #0ea5e9
+        }
+        
+        /* Enhanced Sidebar Transitions */
+        .sidebar-transition {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .menu-item-transition {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .icon-transition {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Mobile Responsive Improvements */
+        @media (max-width: 768px) {
+            .sidebar-transition {
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+        }
+
+        /* Smooth scroll for mobile */
+        @media (max-width: 768px) {
+            .overflow-y-auto {
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+
+        /* Enhanced Menu Item Hover Effects */
+        .menu-item {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menu-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.1), transparent);
+            transition: left 0.5s ease-in-out;
+        }
+
+        .menu-item:hover::before {
+            left: 100%;
+        }
+
+        .menu-item:hover {
+            transform: translateX(4px) scale(1.02);
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
+        }
+
+        .menu-item:active {
+            transform: translateX(2px) scale(0.98);
+        }
+
+        /* Enhanced Focus States */
+        .menu-item:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3), 0 4px 12px rgba(14, 165, 233, 0.15);
+            transform: translateX(2px);
+        }
+
+        .menu-item:focus-visible {
+            outline: 2px solid #0ea5e9;
+            outline-offset: 2px;
+        }
+
+        /* Enhanced Icon Animations */
+        .menu-item:hover .icon-hover {
+            transform: scale(1.15) rotate(5deg);
+            filter: drop-shadow(0 2px 4px rgba(14, 165, 233, 0.3));
+        }
+
+        .menu-item:active .icon-hover {
+            transform: scale(1.05) rotate(-2deg);
+        }
+
+        /* Enhanced Tooltip */
+        .tooltip {
+            pointer-events: none;
+            z-index: 9999;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Live Clock Styles */
+        .live-clock {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid rgba(14, 165, 233, 0.2);
+            animation: clockPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes clockPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
+            }
+        }
+
+        /* Button Enhancements */
+        .btn-primary {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease-in-out;
+        }
+
+        .btn-primary:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 8px 25px rgba(14, 165, 233, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        /* Sidebar Toggle Animation */
+        .sidebar-toggle:hover {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            transform: scale(1.1) rotate(180deg);
+        }
+
+        /* Responsive Enhancements */
+        @media (max-width: 640px) {
+            .menu-item:hover {
+                transform: translateX(2px) scale(1.01);
+            }
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+        /* Prevent tooltip/popover from creating horizontal scrollbars
+           and make collapsed sidebar tooltips wrap safely on small screens */
+        html, body {
+            overflow-x: hidden;
+        }
+
+        .tooltip {
+            max-width: calc(100vw - 6rem);
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        /* Tooltip helper to position to the right and prevent off-screen placement */
+        .tooltip-right {
+            left: calc(100% + 0.5rem) !important;
+            right: auto !important;
+            z-index: 9999;
+        }
+
+        /* Ensure sidebar doesn't create unexpected layout shifts when collapsed */
+        aside.sidebar-transition {
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            will-change: transform;
+        }
+
+        /* Global responsive helpers for all admin pages */
+        @media (max-width: 768px) {
+            /* Make any table within admin content scroll horizontally instead of breaking layout */
+            .admin-content table {
+                display: block;
+                width: 100%;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            .admin-content thead,
+            .admin-content tbody,
+            .admin-content th,
+            .admin-content td,
+            .admin-content tr {
+                white-space: nowrap;
+            }
+
+            /* Prevent large blocks from causing side scroll */
+            .admin-content img,
+            .admin-content video,
+            .admin-content canvas,
+            .admin-content iframe {
+                max-width: 100%;
+                height: auto;
+            }
+
+            /* Utility to keep cards and sections nicely spaced on mobile */
+            .admin-content .card,
+            .admin-content .panel,
+            .admin-content .section {
+                border-radius: 0.75rem;
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-white antialiased">
+    <div class="flex min-h-screen" x-data="{
+        sidebarCollapsed: false,
+        usersExpanded: false,
+        schedulesExpanded: false,
+        shiftsExpanded: false,
+        attendancesExpanded: false,
+        locationsExpanded: false,
+        mobileMenuOpen: false,
+        isMobile: false,
+        init() {
+            this.checkMobile();
+            // Don't auto-collapse on desktop, only on mobile
+            this.sidebarCollapsed = this.isMobile ? true : (localStorage.getItem('sidebarCollapsed') === 'true');
+            this.mobileMenuOpen = false; // Always start with mobile menu closed
+            this.usersExpanded = localStorage.getItem('usersExpanded') === 'true';
+            this.schedulesExpanded = localStorage.getItem('schedulesExpanded') === 'true';
+            this.shiftsExpanded = localStorage.getItem('shiftsExpanded') === 'true';
+            this.attendancesExpanded = localStorage.getItem('attendancesExpanded') === 'true';
+            this.locationsExpanded = localStorage.getItem('locationsExpanded') === 'true';
+            
+            // Auto-collapse on mobile with debounce
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    const wasMobile = this.isMobile;
+                    this.checkMobile();
+                    
+                    // If switching from desktop to mobile
+                    if (!wasMobile && this.isMobile) {
+                        this.sidebarCollapsed = true;
+                        this.mobileMenuOpen = false;
+                    }
+                    // If switching from mobile to desktop
+                    else if (wasMobile && !this.isMobile) {
+                        this.sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+                        this.mobileMenuOpen = false;
+                    }
+                }, 150);
+            });
+        },
+        checkMobile() {
+            this.isMobile = window.innerWidth < 768;
+            // Force close mobile menu when checking mobile state
+            if (this.isMobile) {
+                this.mobileMenuOpen = false;
+            }
+        },
+        toggleSidebar() {
+            if (this.isMobile) {
+                this.mobileMenuOpen = !this.mobileMenuOpen;
+            } else {
+                this.sidebarCollapsed = !this.sidebarCollapsed;
+                localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed);
+            }
+        },
+        closeMobileMenu() {
+            if (this.isMobile) {
+                this.mobileMenuOpen = false;
+            }
+        },
+        toggleUsers() {
+            this.usersExpanded = !this.usersExpanded;
+            localStorage.setItem('usersExpanded', this.usersExpanded);
+        },
+        toggleSchedules() {
+            this.schedulesExpanded = !this.schedulesExpanded;
+            localStorage.setItem('schedulesExpanded', this.schedulesExpanded);
+        },
+        toggleShifts() {
+            this.shiftsExpanded = !this.shiftsExpanded;
+            localStorage.setItem('shiftsExpanded', this.shiftsExpanded);
+        },
+        toggleAttendances() {
+            this.attendancesExpanded = !this.attendancesExpanded;
+            localStorage.setItem('attendancesExpanded', this.attendancesExpanded);
+        },
+        toggleLocations() {
+            this.locationsExpanded = !this.locationsExpanded;
+            localStorage.setItem('locationsExpanded', this.locationsExpanded);
+        }
+    }" x-init="init()"
+    @click.away="closeMobileMenu()"
+    @keydown.escape="closeMobileMenu()"
+    >
+
+        <!-- Mobile Overlay -->
+        <div x-show="isMobile && mobileMenuOpen" 
+             x-transition:enter="transition-opacity ease-linear duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition-opacity ease-linear duration-300"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="fixed inset-0 bg-gray-800/50 z-20 md:hidden"
+             @click="closeMobileMenu()"></div>
+
+        <!-- Sidebar -->
+        <aside 
+            :class="{
+                'w-20': sidebarCollapsed && !isMobile,
+                'w-64': (!sidebarCollapsed && !isMobile) || (isMobile && mobileMenuOpen),
+                'translate-x-0': (isMobile && mobileMenuOpen) || !isMobile,
+                '-translate-x-full': isMobile && !mobileMenuOpen
+            }"
+            class="bg-white/95 backdrop-blur-lg border-r border-sky-200 sidebar-transition fixed top-0 left-0 h-screen z-30 flex flex-col shadow-xl md:shadow-none">
+
+            <!-- Sidebar Header -->
+            <div :class="sidebarCollapsed && !isMobile ? 'p-4' : 'p-4 sm:p-6'" class="border-b border-gray-200 flex-shrink-0">
+
+    <div class="flex items-center"
+         :class="(sidebarCollapsed && !isMobile) ? 'justify-center' : 'justify-between'">
+
+        <!-- Logo -->
+        <a href="{{ route('admin.dashboard') }}"
+           class="flex items-center gap-2 overflow-hidden"
+           x-show="!sidebarCollapsed || isMobile">
+
+            <div class="flex flex-col leading-tight">
+                <span class="text-base font-bold text-sky-700">Unismuh</span>
+                <span class="text-xs font-semibold text-gray-500">Makassar</span>
+            </div>
+        </a>
+
+        <!-- Toggle Desktop -->
+        <button
+            x-show="!isMobile"
+            @click="toggleSidebar()"
+            :class="(sidebarCollapsed && !isMobile) ? 'mx-auto' : ''"
+            class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
+            aria-label="Toggle sidebar">
+
+            <i :data-lucide="sidebarCollapsed ? 'panel-right-open' : 'panel-left-close'"
+               class="w-5 h-5"></i>
+        </button>
+
+        <!-- Close Mobile -->
+        <button
+            x-show="isMobile"
+            @click="closeMobileMenu()"
+            class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-400 md:hidden"
+            aria-label="Close menu">
+
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+    </div>
+</div>
+
+
+            <!-- Sidebar Navigation -->
+            <nav class="flex-1 space-y-2 p-3 overflow-y-auto" role="navigation">
+
+                <!-- Dashboard -->
+                <a href="{{ route('admin.dashboard') }}"
+                    @click="closeMobileMenu()"
+                    :class="sidebarCollapsed && !isMobile ? 'justify-center px-2 py-4 relative group' : 'px-4 py-3'"
+                    class="menu-item group flex items-center text-sm font-semibold rounded-xl menu-item-transition
+        {{ request()->routeIs('admin.dashboard') ? 'bg-sky-100 text-sky-700 border border-sky-200' : 'text-gray-600 hover:bg-sky-100 hover:text-sky-700 border border-transparent hover:border-sky-200' }}"
+                    :aria-label="sidebarCollapsed && !isMobile ? 'Dashboard' : ''">
+                    <i data-lucide="layout-dashboard"
+                        class="icon-hover w-5 h-5 icon-transition {{ request()->routeIs('admin.dashboard') ? 'text-sky-700' : 'text-gray-500 group-hover:text-sky-700' }}"
+                        :class="(sidebarCollapsed && !isMobile) ? 'mr-0' : 'mr-3'"></i>
+                    <span x-show="!sidebarCollapsed || isMobile" x-transition:enter="transition ease-out duration-200"
+                        x-transition:enter-start="opacity-0 translate-x-2"
+                        x-transition:enter-end="opacity-100 translate-x-0">Dashboard</span>
+
+                    <div x-show="sidebarCollapsed && !isMobile"
+                        class="tooltip tooltip-right absolute top-1/2 transform -translate-y-1/2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
+                        Dashboard
+                        <div
+                            class="absolute top-1/2 left-0 transform -translate-y-1/2 -translate-x-1 w-2 h-2 bg-gray-800 rotate-45">
+                        </div>
+                    </div>
+                </a>
+
+                <!-- Users -->
+                <x-admin.sidebar-collapsible
+    label="Users"
+    icon="users"
+    main-route="admin.users.index"
+    active-pattern="admin.users.*"
+>
+    <x-admin.sidebar-link
+        route="admin.users.index"
+        active="admin.users.index">
+        Manage Users
+    </x-admin.sidebar-link>
+
+    <x-admin.sidebar-link
+        route="admin.users.create"
+        active="admin.users.create">
+        Add User
+    </x-admin.sidebar-link>
+</x-admin.sidebar-collapsible>
+
+
+                <!-- Shifts -->
+                <x-admin.sidebar-collapsible
+    label="Shifts"
+    icon="clock"
+    main-route="admin.shifts.index"
+    active-pattern="admin.shifts.*"
+>
+    <x-admin.sidebar-link
+        route="admin.shifts.index"
+        active="admin.shifts.index">
+        Manage Shifts
+    </x-admin.sidebar-link>
+
+    <x-admin.sidebar-link
+        route="admin.shifts.create"
+        active="admin.shifts.create">
+        Add Shift
+    </x-admin.sidebar-link>
+</x-admin.sidebar-collapsible>
+
+
+                <x-admin.sidebar-collapsible
+    label="Schedules"
+    icon="calendar"
+    main-route="admin.schedules.index"
+    active-pattern="admin.schedules.*"
+>
+    <x-admin.sidebar-link
+        route="admin.schedules.index"
+        active="admin.schedules.index">
+        Manage Schedules
+    </x-admin.sidebar-link>
+
+    <x-admin.sidebar-link
+        route="admin.schedules.create"
+        active="admin.schedules.create">
+        Add Schedules
+    </x-admin.sidebar-link>
+
+    <x-admin.sidebar-link
+        route="admin.calendar.view"
+        active="admin.calendar.view">
+        Schedules Table
+    </x-admin.sidebar-link>
+</x-admin.sidebar-collapsible>
+
+
+                <!-- Locations -->
+                <x-admin.sidebar-collapsible
+    label="Locations"
+    icon="map-pin"
+    main-route="admin.locations.index"
+    active-pattern="admin.locations.*"
+>
+    <x-admin.sidebar-link
+        route="admin.locations.index"
+        active="admin.locations.index">
+        Manage Locations
+    </x-admin.sidebar-link>
+
+    <x-admin.sidebar-link
+        route="admin.locations.create"
+        active="admin.locations.create">
+        Add Location
+    </x-admin.sidebar-link>
+</x-admin.sidebar-collapsible>
+
+
+                <!-- Attendances -->
+                <x-admin.sidebar-collapsible
+    label="Attendances"
+    icon="user-check"
+    main-route="admin.attendances.index"
+    active-pattern="admin.attendances.*"
+>
+    <a href="{{ route('admin.attendances.index') }}"
+       class="flex items-center justify-between px-3 py-2 rounded-md text-sm
+       {{ request()->routeIs('admin.attendances.index')
+            ? 'bg-sky-100 text-sky-700'
+            : 'text-gray-600 hover:bg-gray-100' }}">
+        View Attendances
+        <span x-show="$store.badges.izin > 0"
+              class="ml-2 px-2 text-xs rounded-full bg-red-600 text-white">
+            <span x-text="$store.badges.izin"></span>
+        </span>
+    </a>
+</x-admin.sidebar-collapsible>
+
+                <!-- Divider -->
+                <div class="my-4 border-t border-sky-200 border-opacity-30"></div>
+            </nav>
+
+            <!-- Sidebar Footer -->
+            <div class="sidebar-footer p-4 border-t border-sky-200 border-opacity-30 flex-shrink-0">
+                <!-- Expanded Footer (Desktop & Mobile) -->
+                <div x-show="(!sidebarCollapsed && !isMobile) || (isMobile && mobileMenuOpen)"
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                    class="flex items-center justify-center space-x-2 text-sm text-gray-500 bg-sky-50 rounded-xl p-3">
+                    <i data-lucide="code" class="w-4 h-4"></i>
+                    <span class="font-medium">Made by Unismuh</span>
+                </div>
+                
+                <!-- Collapsed Footer (Desktop Only) -->
+                <div x-show="sidebarCollapsed && !isMobile"
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                    class="flex items-center justify-center p-2">
+                    <div class="w-8 h-8 bg-sky-100 rounded-lg flex items-center justify-center group hover:bg-sky-200 transition-colors relative">
+                        <i data-lucide="code" class="w-4 h-4 text-sky-600"></i>
+                        <div class="tooltip tooltip-right absolute top-1/2 transform -translate-y-1/2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
+                            Made by Unismuh
+                            <div class="absolute top-1/2 left-0 transform -translate-y-1/2 -translate-x-1 w-2 h-2 bg-gray-800 rotate-45"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col min-h-screen sidebar-transition"
+            :class="{
+                'ml-20': sidebarCollapsed && !isMobile,
+                'ml-64': !sidebarCollapsed && !isMobile,
+                'ml-0': isMobile
+            }">
+
+            <!-- Header -->
+            <header class="bg-white/90 backdrop-blur-lg border-b border-sky-200 flex-shrink-0 sticky top-0 z-20">
+                <div class="px-4 sm:px-6 py-4 flex justify-between items-center gap-4">
+                    <div class="flex items-center space-x-4">
+                        <!-- Mobile Menu Toggle -->
+                        <button x-show="isMobile" @click="toggleSidebar()"
+                            class="p-2 rounded-lg hover:bg-sky-100 text-gray-600 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 md:hidden">
+                            <i data-lucide="menu" class="w-6 h-6"></i>
+                        </button>
+                        
+                        <div>
+                            <h1 class="text-2xl font-semibold text-gray-700 tracking-tight">@yield('title')</h1>
+                            <p class="text-base text-gray-500 mt-1">Manage your application</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-6">
+                        <!-- Live Clock -->
+                        <div
+                            class="hidden md:flex items-center space-x-3 px-4 py-3 live-clock rounded-2xl transition-all duration-300">
+                            <div class="relative">
+                                <i data-lucide="clock" class="w-5 h-5 text-sky-600"></i>
+                                <div class="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse">
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-sm font-bold text-sky-700" id="live-time">--:--:--</div>
+                                <div class="text-xs text-sky-600" id="live-date">-- --- ----</div>
+                            </div>
+                        </div>
+
+                        <!-- User Profile Dropdown -->
+                        <div class="relative" x-data="{ open: false }">
+                            <button @click="open = !open"
+                                class="flex items-center space-x-3 px-4 py-3 rounded-2xl hover:bg-sky-50 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 group"
+                                :class="{ 'bg-sky-50 ring-2 ring-sky-200': open }" :aria-expanded="open">
+                                <div
+                                    class="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500 to-sky-600 flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow duration-300">
+                                    <i data-lucide="user" class="w-5 h-5 text-white"></i>
+                                </div>
+                                <div class="hidden sm:block text-left">
+                                    <p
+                                        class="text-sm font-semibold text-gray-700 group-hover:text-sky-700 transition-colors">
+                                        {{ auth()->user()->name }}</p>
+                                    <p class="text-xs text-sky-600 font-medium">Administrator</p>
+                                </div>
+                                <i data-lucide="chevron-down"
+                                    class="w-4 h-4 text-gray-500 transition-all duration-300 group-hover:text-sky-600"
+                                    :class="{ 'rotate-180': open }"></i>
+                            </button>
+
+                            <!-- Modern Admin Dropdown menu -->
+                            <div x-show="open" @click.away="open = false"
+                                class="absolute right-0 mt-3 w-80 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-sky-100 overflow-hidden z-50"
+                                x-transition:enter="transition ease-out duration-300"
+                                x-transition:enter-start="transform opacity-0 scale-90 translate-y-2"
+                                x-transition:enter-end="transform opacity-100 scale-100 translate-y-0"
+                                x-transition:leave="transition ease-in duration-200"
+                                x-transition:leave-start="transform opacity-100 scale-100 translate-y-0"
+                                x-transition:leave-end="transform opacity-0 scale-90 translate-y-2">
+
+                                <!-- Header with gradient -->
+                                <div class="bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-4">
+                                    <div class="flex items-center space-x-4">
+                                        <div
+                                            class="w-16 h-16 rounded-3xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
+                                            <i data-lucide="shield-check" class="w-8 h-8 text-white"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <h3 class="text-lg font-bold text-white">{{ auth()->user()->name }}</h3>
+                                            <p class="text-sky-100 text-sm font-medium">{{ auth()->user()->email }}
+                                            </p>
+                                            <div class="flex items-center mt-1">
+                                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse mr-2">
+                                                </div>
+                                                <span class="text-xs text-sky-100">Administrator</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Menu Items -->
+                                <div class="p-4 space-y-2">
+                                    <!-- Dashboard Link -->
+                                    <!--<a href="{{ route('admin.dashboard') }}" --
+                                        class="flex items-center space-x-3 px-4 py-3 rounded-2xl hover:bg-sky-50 transition-all duration-200 group">
+                                        <div
+                                            class="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center group-hover:bg-sky-200 transition-colors">
+                                            <i data-lucide="layout-dashboard" class="w-5 h-5 text-sky-600"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="text-sm font-semibold text-gray-700 group-hover:text-sky-700">
+                                                Dashboard</p>
+                                            <p class="text-xs text-gray-500">Admin overview</p>
+                                        </div>
+                                        <i data-lucide="chevron-right"
+                                            class="w-4 h-4 text-gray-400 group-hover:text-sky-600"></i>
+                                    </a> -->
+
+                                    <!-- Users Management Link -->
+                                    <!--<a href="{{ route('admin.users.index') }}"
+                                        class="flex items-center space-x-3 px-4 py-3 rounded-2xl hover:bg-purple-50 transition-all duration-200 group">
+                                        <div
+                                            class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                                            <i data-lucide="users" class="w-5 h-5 text-purple-600"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="text-sm font-semibold text-gray-700 group-hover:text-purple-700">
+                                                Users</p>
+                                            <p class="text-xs text-gray-500">Manage employees</p>
+                                        </div>
+                                        <i data-lucide="chevron-right"
+                                            class="w-4 h-4 text-gray-400 group-hover:text-purple-600"></i>
+                                    </a> -->
+
+                                    <!-- Schedules Link -->
+                                    <!--<a href="{{ route('admin.schedules.index') }}"
+                                        class="flex items-center space-x-3 px-4 py-3 rounded-2xl hover:bg-emerald-50 transition-all duration-200 group">
+                                        <div
+                                            class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
+                                            <i data-lucide="calendar" class="w-5 h-5 text-emerald-600"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p
+                                                class="text-sm font-semibold text-gray-700 group-hover:text-emerald-700">
+                                                Schedules</p>
+                                            <p class="text-xs text-gray-500">Manage work schedules</p>
+                                        </div>
+                                        <i data-lucide="chevron-right"
+                                            class="w-4 h-4 text-gray-400 group-hover:text-emerald-600"></i>
+                                    </a> -->
+
+                                    <!-- Attendance Link -->
+                                    <!--<a href="{{ route('admin.attendances.index') }}"
+                                        class="flex items-center space-x-3 px-4 py-3 rounded-2xl hover:bg-amber-50 transition-all duration-200 group">
+                                        <div
+                                            class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center group-hover:bg-amber-200 transition-colors">
+                                            <i data-lucide="user-check" class="w-5 h-5 text-amber-600"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="text-sm font-semibold text-gray-700 group-hover:text-amber-700">
+                                                Attendance</p>
+                                            <p class="text-xs text-gray-500">View attendance records</p>
+                                        </div>
+                                        <i data-lucide="chevron-right"
+                                            class="w-4 h-4 text-gray-400 group-hover:text-amber-600"></i>
+                                    </a> -->
+                                    <!-- Activity Logs Link -->
+                                    <a href="{{ route('admin.activity-logs.index') }}"
+                                        class="flex items-center space-x-3 px-4 py-3 rounded-2xl hover:bg-indigo-50 transition-all duration-200 group">
+                                        <div
+                                            class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
+                                            <i data-lucide="activity" class="w-5 h-5 text-indigo-600"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="text-sm font-semibold text-gray-700 group-hover:text-indigo-700">
+                                                Activity Logs</p>
+                                            <p class="text-xs text-gray-500">View system activity logs</p>
+                                        </div>
+                                        <i data-lucide="chevron-right"
+                                            class="w-4 h-4 text-gray-400 group-hover:text-indigo-600"></i>
+                                    </a>
+                                    <!-- Security Management Link -->
+                                    <a href="{{ route('admin.security.index') }}"
+                                        class="flex items-center space-x-3 px-4 py-3 rounded-2xl hover:bg-red-50 transition-all duration-200 group">
+                                        <div
+                                            class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center group-hover:bg-red-200 transition-colors">
+                                            <i data-lucide="shield-alert" class="w-5 h-5 text-red-600"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="text-sm font-semibold text-gray-700 group-hover:text-red-700">
+                                                Security</p>
+                                            <p class="text-xs text-gray-500">Manage system security</p>
+                                        </div>
+                                        <i data-lucide="chevron-right"
+                                            class="w-4 h-4 text-gray-400 group-hover:text-red-600"></i>
+                                    </a>
+                                    <!-- Profile Link -->
+                                    <a href="{{ route('admin.profile.index') }}"
+                                        class="flex items-center space-x-3 px-4 py-3 rounded-2xl hover:bg-teal-50 transition-all duration-200 group">
+                                        <div
+                                            class="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center group-hover:bg-teal-200 transition-colors">
+                                            <i data-lucide="user-circle" class="w-5 h-5 text-teal-600"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="text-sm font-semibold text-gray-700 group-hover:text-teal-700">
+                                                Profile</p>
+                                            <p class="text-xs text-gray-500">Manage your profile</p>
+                                        </div>
+                                        <i data-lucide="chevron-right"
+                                            class="w-4 h-4 text-gray-400 group-hover:text-teal-600"></i>
+                                    </a>
+                                </div>
+
+                                <!-- Divider -->
+                                <div class="border-t border-sky-100 mx-4"></div>
+
+                                <!-- Logout Section -->
+                                <div class="p-4">
+                                    <form action="{{ route('logout') }}" method="POST">
+                                        @csrf
+                                        <button type="submit"
+                                            class="flex items-center space-x-3 w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-2xl transition-all duration-200 focus:outline-none focus:bg-red-50 group">
+                                            <div
+                                                class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center group-hover:bg-red-200 transition-colors">
+                                                <i data-lucide="log-out" class="w-5 h-5 text-red-600"></i>
+                                            </div>
+                                            <div class="flex-1 text-left">
+                                                <p class="text-sm font-semibold">Sign out</p>
+                                                <p class="text-xs text-red-500">End admin session</p>
+                                            </div>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content -->
+            <main class="flex-1 bg-white overflow-auto">
+                <div class="admin-content p-4 sm:p-6 lg:p-8 min-h-full m-0">
+                    @yield('content')
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+
+            initializeLiveClock();
+        });
+
+        document.addEventListener('alpine:init', () => {
+            setTimeout(() => {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }, 100);
+        });
+
+        function initializeLiveClock() {
+            function updateClock() {
+                const now = new Date();
+
+                const timeOptions = {
+                    timeZone: 'Asia/Jakarta',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                };
+
+                const dateOptions = {
+                    timeZone: 'Asia/Jakarta',
+                    weekday: 'short',
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                };
+
+                const timeString = now.toLocaleTimeString('id-ID', timeOptions);
+                const dateString = now.toLocaleDateString('id-ID', dateOptions);
+
+                const timeElement = document.getElementById('live-time');
+                const dateElement = document.getElementById('live-date');
+
+                if (timeElement) {
+                    timeElement.textContent = timeString;
+                    timeElement.style.transform = 'scale(1.05)';
+                    setTimeout(() => {
+                        timeElement.style.transform = 'scale(1)';
+                    }, 150);
+                }
+
+                if (dateElement) {
+                    dateElement.textContent = dateString;
+                }
+            }
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.activeElement.blur();
+                const mobileMenuToggle = document.querySelector('[x-data]');
+                if (mobileMenuToggle && window.innerWidth < 768) {
+                    mobileMenuToggle.__x.$data.mobileMenuOpen = false;
+                }
+            }
+
+            if (e.altKey && e.key === 's') {
+                e.preventDefault();
+                const sidebarToggle = document.querySelector('.sidebar-toggle');
+                if (sidebarToggle) {
+                    sidebarToggle.click();
+                }
+            }
+
+            if (e.altKey && e.key === 'm' && window.innerWidth < 768) {
+                e.preventDefault();
+                const mobileToggle = document.querySelector('[x-show="isMobile"]');
+                if (mobileToggle) {
+                    mobileToggle.click();
+                }
+            }
+        });
+
+        document.documentElement.style.scrollBehavior = 'smooth';
+    </script>
+
+    @stack('scripts')
+</body>
+
+</html>
